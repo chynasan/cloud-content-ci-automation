@@ -23,7 +23,11 @@ runs:
         fi
 
         # Get changed files
-        CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "$HEAD_SHA" || true)
+        CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "$HEAD_SHA")
+        if [ $? -ne 0 ]; then
+          echo "::error::git diff failed unexpectedly."
+          exit 1
+        fi
 
         if [ -z "$CHANGED_FILES" ]; then
           echo "No changed files detected."
@@ -39,7 +43,8 @@ runs:
         FOUND_BLOCKED=""
 
         for pattern in $BLOCKED_PATTERNS; do
-          MATCHES=$(echo "$CHANGED_FILES" | grep "^${pattern}" || true)
+          # Match pattern at any depth (e.g., roles/myapp/.claude/ is also blocked)
+          MATCHES=$(echo "$CHANGED_FILES" | grep "${pattern}" || true)
           if [ -n "$MATCHES" ]; then
             FOUND_BLOCKED="${FOUND_BLOCKED}${MATCHES}"$'\n'
           fi
