@@ -1,0 +1,84 @@
+---
+name: Security Check - Block Unsafe Directories
+description: |
+  Blocks PRs that add files to .claude/ or .vscode/ directories.
+  These directories can contain configurations that execute code automatically,
+  posing a security risk to contributors.
+
+runs:
+  using: composite
+  steps:
+    - name: Check for blocked directories in PR
+      shell: bash
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: |
+        echo "Checking for blocked directories in changed files..."
+
+        if [ -z "$BASE_SHA" ] || [ -z "$HEAD_SHA" ]; then
+          echo "Not a pull request event, skipping check."
+          exit 0
+        fi
+
+        # Get changed files
+        CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "$HEAD_SHA")
+        if [ $? -ne 0 ]; then
+          echo "::error::git diff failed unexpectedly."
+          exit 1
+        fi
+
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "No changed files detected."
+          exit 0
+        fi
+
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+        echo ""
+
+        # Check for blocked directories
+        BLOCKED_PATTERNS=".claude/ .vscode/"
+        FOUND_BLOCKED=""
+
+        for pattern in $BLOCKED_PATTERNS; do
+          # Match pattern at any depth (e.g., roles/myapp/.claude/ is also blocked)
+          MATCHES=$(echo "$CHANGED_FILES" | grep "${pattern}" || true)
+          if [ -n "$MATCHES" ]; then
+            FOUND_BLOCKED="${FOUND_BLOCKED}${MATCHES}"$'\n'
+          fi
+        done
+
+        if [ -n "$FOUND_BLOCKED" ]; then
+          echo "::error::SECURITY VIOLATION: This PR contains files in blocked directories."
+          echo ""
+          echo "=========================================="
+          echo "BLOCKED FILES DETECTED"
+          echo "=========================================="
+          echo "$FOUND_BLOCKED"
+          echo ""
+          echo "=========================================="
+          echo "SECURITY RATIONALE"
+          echo "=========================================="
+          echo "The following directories are blocked from being added to this repository:"
+          echo ""
+          echo "  - .claude/  : Claude Code configuration files can contain hooks and commands"
+          echo "                that execute automatically when contributors use Claude Code."
+          echo "                Malicious configurations could run arbitrary code on developer"
+          echo "                machines without their knowledge."
+          echo ""
+          echo "  - .vscode/  : VS Code configuration files can contain tasks, launch configs,"
+          echo "                and extension settings that execute automatically. These could"
+          echo "                be exploited to run malicious code when opening the project."
+          echo ""
+          echo "This is a defense-in-depth measure. Even if local pre-commit hooks are"
+          echo "bypassed (using --no-verify), this CI check ensures these directories"
+          echo "cannot be merged into the repository."
+          echo ""
+          echo "If you believe this is a false positive, please contact the maintainers."
+          echo "=========================================="
+          exit 1
+        fi
+
+        echo "No blocked directories found in changed files."
+        echo "Security check passed."
