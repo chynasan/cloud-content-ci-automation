@@ -10,12 +10,11 @@ runs:
   steps:
     - name: Check for blocked directories in PR
       shell: bash
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       run: |
         echo "Checking for blocked directories in changed files..."
-
-        # Get the list of files changed in this PR
-        BASE_SHA="${{ github.event.pull_request.base.sha }}"
-        HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
         if [ -z "$BASE_SHA" ] || [ -z "$HEAD_SHA" ]; then
           echo "Not a pull request event, skipping check."
