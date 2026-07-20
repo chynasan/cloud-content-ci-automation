@@ -12,7 +12,7 @@ inputs:
       Typically secrets.GITHUB_TOKEN.
     required: true
   label-name:
-    description: 'Label to add when CI/CD files are Detected'
+    description: 'Label to add when CI/CD files are detected'
     required: false
     default: 'ci-cd-change'
 
